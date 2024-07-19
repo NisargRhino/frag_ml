@@ -1,14 +1,15 @@
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split, RandomizedSearchCV
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split, GridSearchCV, KFold
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, VotingRegressor
+from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import LabelEncoder
 from sklearn.impute import SimpleImputer
 from rdkit import Chem
 from rdkit.Chem import Descriptors, AllChem
 from xgboost import XGBRegressor
 from sklearn.svm import SVR
+from sklearn.neural_network import MLPRegressor
 from tqdm import tqdm
 
 # Load the cleaned CSV file
@@ -93,10 +94,11 @@ models = {
     "RandomForest": RandomForestRegressor(random_state=42, n_jobs=-1),
     "GradientBoosting": GradientBoostingRegressor(random_state=42),
     "XGBoost": XGBRegressor(random_state=42, n_jobs=-1),
-    "SVR": SVR()
+    "SVR": SVR(),
+    "MLP": MLPRegressor(random_state=42, max_iter=1000)
 }
 
-# Define the parameter grids for RandomizedSearchCV
+# Define the parameter grids for GridSearchCV
 param_grids = {
     "RandomForest": {
         'n_estimators': [200, 500, 1000],
@@ -123,36 +125,43 @@ param_grids = {
         'C': [0.1, 1, 10, 100],
         'epsilon': [0.01, 0.1, 1],
         'kernel': ['linear', 'poly', 'rbf']
+    },
+    "MLP": {
+        'hidden_layer_sizes': [(100,), (100, 50), (100, 50, 25)],
+        'activation': ['relu', 'tanh'],
+        'solver': ['adam', 'sgd'],
+        'alpha': [0.0001, 0.001, 0.01]
     }
 }
 
-# Perform RandomizedSearchCV to find the best model and hyperparameters
+# Perform GridSearchCV to find the best model and hyperparameters
 best_models = {}
 for model_name, model in models.items():
     print(f"Optimizing {model_name}...")
-    random_search = RandomizedSearchCV(estimator=model, param_distributions=param_grids[model_name], n_iter=100, cv=3, verbose=2, random_state=42, n_jobs=-1)
-    random_search.fit(X_train, y_train)
-    best_models[model_name] = random_search.best_estimator_
-    print(f"Best parameters for {model_name}: {random_search.best_params_}")
+    grid_search = GridSearchCV(estimator=model, param_grid=param_grids[model_name], cv=KFold(n_splits=5, shuffle=True, random_state=42), verbose=2, n_jobs=-1)
+    grid_search.fit(X_train, y_train)
+    best_models[model_name] = grid_search.best_estimator_
+    print(f"Best parameters for {model_name}: {grid_search.best_params_}")
 
 # Evaluate all models on the test set and compare their performances
 model_performances = {}
 for model_name, model in best_models.items():
     y_pred = model.predict(X_test)
     mse = mean_squared_error(y_test, y_pred)
-    model_performances[model_name] = mse
-    print(f"{model_name} Mean Squared Error: {mse}")
+    r2 = r2_score(y_test, y_pred)
+    model_performances[model_name] = {"mse": mse, "r2": r2}
+    print(f"{model_name} Mean Squared Error: {mse}, R2 Score: {r2}")
 
-# Select the best model based on MSE
-best_model_name = min(model_performances, key=model_performances.get)
+# Select the best model based on R2 Score
+best_model_name = max(model_performances, key=lambda x: model_performances[x]['r2'])
 best_model = best_models[best_model_name]
-print(f"Best model: {best_model_name} with MSE: {model_performances[best_model_name]}")
+print(f"Best model: {best_model_name} with R2 Score: {model_performances[best_model_name]['r2']}")
 
-# Function to generate fragmentations for a given drug SMILES
-def generate_fragmentations(smiles, model, label_encoder, feature_columns, num_fragments=10):
+# Function to generate the best fragment for a given drug SMILES
+def generate_best_fragment(smiles, model, label_encoder, feature_columns):
     descriptors = calculate_descriptors(smiles)
     if any(np.isnan(descriptors)):
-        return ["Invalid SMILES input"]
+        return "Invalid SMILES input"
     
     input_data = pd.DataFrame([descriptors], columns=descriptor_columns)
     
@@ -165,10 +174,10 @@ def generate_fragmentations(smiles, model, label_encoder, feature_columns, num_f
     # Impute missing values
     input_data = imputer.transform(input_data)
     
-    predicted_labels = model.predict(input_data)
-    predicted_fragments = label_encoder.inverse_transform(predicted_labels.astype(int))
+    predicted_label = model.predict(input_data)[0]
+    predicted_fragment = label_encoder.inverse_transform([int(predicted_label)])[0]
     
-    return predicted_fragments[:num_fragments]
+    return predicted_fragment
 
 # Clean up the molecule using RDKit
 def cleanup_molecule_rdkit(smiles):
@@ -191,16 +200,14 @@ def cleanup_molecule_rdkit(smiles):
     
     return mol
 
-# Generate the top 10 fragments for a given drug SMILES
+# Generate the best fragment for a given drug SMILES
 drug_smiles = 'CC[C@@]1(O)CCc2c(O)cc(C(/C(=C\C=O)/C=C\C=C\OC)=O)c(O)c2C1'
-top_fragments = generate_fragmentations(drug_smiles, best_model, label_encoder_smiles, feature_columns, num_fragments=10)
-print("Top 10 Fragments:", top_fragments)
+best_fragment = generate_best_fragment(drug_smiles, best_model, label_encoder_smiles, feature_columns)
+print("Best Fragment:", best_fragment)
 
-# Clean up the top fragments
-cleaned_fragments = [cleanup_molecule_rdkit(smiles) for smiles in top_fragments if smiles != "Invalid SMILES input"]
-cleaned_fragments_smiles = [Chem.MolToSmiles(frag) for frag in cleaned_fragments]
+# Clean up the best fragment
+cleaned_fragment = cleanup_molecule_rdkit(best_fragment)
+cleaned_fragment_smiles = Chem.MolToSmiles(cleaned_fragment)
 
 # Print the cleaned-up SMILES
-print("Cleaned-Up Top 10 Fragments SMILES:")
-for smiles in cleaned_fragments_smiles:
-    print(smiles)
+print("Cleaned-Up Best Fragment SMILES:", cleaned_fragment_smiles)
