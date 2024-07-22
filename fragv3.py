@@ -6,18 +6,14 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import LabelEncoder
 from sklearn.impute import SimpleImputer
 from rdkit import Chem
-from rdkit.Chem import Descriptors
+from rdkit.Chem import Descriptors, AllChem
 from xgboost import XGBRegressor
 from sklearn.svm import SVR
 from sklearn.neural_network import MLPRegressor
 from tqdm import tqdm
 
-# Load the dataset
 file_path = 'dataset7.csv'
 data = pd.read_csv(file_path)
-
-# Print the column names to verify
-print("Column names in CSV file:", data.columns)
 
 # Define a function to calculate molecular descriptors for SMILES
 def calculate_descriptors(smiles):
@@ -43,7 +39,7 @@ descriptors_df = pd.DataFrame(descriptors.tolist(), columns=descriptor_columns)
 data = pd.concat([data, descriptors_df], axis=1)
 
 # Drop rows with missing values in target column (if any)
-data.dropna(subset=['DRUG SMILES'], inplace=True)
+data.dropna(subset=['FRAG_SMILES'], inplace=True)
 
 # Encode the fragment SMILES
 label_encoder_smiles = LabelEncoder()
@@ -160,38 +156,72 @@ best_model_name = max(model_performances, key=lambda x: model_performances[x]['r
 best_model = best_models[best_model_name]
 print(f"Best model: {best_model_name} with R2 Score: {model_performances[best_model_name]['r2']}")
 
-# Function to generate fragments from a given drug SMILES (placeholder)
+# Function to generate fragments from a given drug SMILES
 def generate_fragments(smiles):
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return []
-    frags = Chem.rdmolops.FragmentOnBRICSBonds(mol)
+    
+    frags = Chem.GetMolFrags(mol, asMols=True, sanitizeFrags=True)
     return [Chem.MolToSmiles(frag) for frag in frags]
 
 # Function to generate the best fragment for a given drug SMILES
 def generate_best_fragment(smiles, model, label_encoder, feature_columns):
     descriptors = calculate_descriptors(smiles)
-    descriptors_df = pd.DataFrame([descriptors], columns=descriptor_columns)
+    if any(np.isnan(descriptors)):
+        return "Invalid SMILES input"
     
+    input_data = pd.DataFrame([descriptors], columns=descriptor_columns)
+    
+    # Ensure input_data has all required feature columns
     for col in feature_columns:
-        if col not in descriptors_df.columns:
-            descriptors_df[col] = np.nan
-
+        if col not in input_data.columns:
+            input_data[col] = np.nan
+    input_data = input_data[feature_columns]
+    
+    # Impute missing values
+    input_data = imputer.transform(input_data)
+    
+    predicted_label = model.predict(input_data)[0]
+    predicted_fragment = label_encoder.inverse_transform([int(predicted_label)])[0]
+    
+    # Verify if the predicted fragment is part of the original drug molecule
     fragments = generate_fragments(smiles)
-    if not fragments:
-        return None, None
-    
-    fragment_descriptors = [calculate_descriptors(frag) for frag in fragments]
-    fragment_df = pd.DataFrame(fragment_descriptors, columns=descriptor_columns)
-    fragment_df = fragment_df.fillna(0)
-    
-    predictions = model.predict(fragment_df)
-    best_fragment_idx = np.argmax(predictions)
-    best_fragment = fragments[best_fragment_idx]
-    
-    return best_fragment, predictions[best_fragment_idx]
+    if predicted_fragment in fragments:
+        return predicted_fragment
+    else:
+        return "No valid fragment found in the original molecule"
 
-# Example usage: generate the best fragment for a given drug SMILES
-example_smiles = 'C1CC1C2=CC=CC=C2'
-best_fragment, prediction = generate_best_fragment(example_smiles, best_model, label_encoder_smiles, feature_columns)
-print(f"Best fragment for {example_smiles}: {best_fragment} with prediction: {prediction}")
+# Clean up the molecule using RDKit
+def cleanup_molecule_rdkit(smiles):
+    # Convert SMILES to molecule
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        raise ValueError("Invalid SMILES string")
+    
+    # Add hydrogens
+    mol = Chem.AddHs(mol)
+    
+    # Generate 3D coordinates
+    AllChem.EmbedMolecule(mol, randomSeed=42)
+    
+    # Optimize the molecule
+    AllChem.UFFOptimizeMolecule(mol)
+    
+    # Remove hydrogens if needed
+    mol = Chem.RemoveHs(mol)
+    
+    return mol
+
+drug_smiles = 'CC[C@@]1(O)CCc2c(O)cc(C(/C(=C\C=O)/C=C\C=C\OC)=O)c(O)c2C1'
+best_fragment = generate_best_fragment(drug_smiles, best_model, label_encoder_smiles, feature_columns)
+print("Best Fragment:", best_fragment)
+
+if best_fragment != "No valid fragment found in the original molecule":
+    # Clean up the best fragment
+    cleaned_fragment = cleanup_molecule_rdkit(best_fragment)
+    cleaned_fragment_smiles = Chem.MolToSmiles(cleaned_fragment)
+    # Print the cleaned-up SMILES
+    print("Cleaned-Up Best Fragment SMILES:", cleaned_fragment_smiles)
+else:
+    print("No valid fragment found in the original molecule.")
