@@ -9,7 +9,7 @@ from rdkit.ML.Descriptors import MoleculeDescriptors
 descriptor_names = [desc_name[0] for desc_name in Descriptors._descList]
 calculator = MoleculeDescriptors.MolecularDescriptorCalculator(descriptor_names)
 
-# Define a function to calculate all available molecular descriptors for SMILES
+# Function to calculate all available molecular descriptors for SMILES
 def calculate_descriptors(smiles):
     mol = Chem.MolFromSmiles(smiles)
     if mol is not None:
@@ -17,7 +17,7 @@ def calculate_descriptors(smiles):
     else:
         return [np.nan] * len(descriptor_names)
 
-# Define a function to calculate Morgan fingerprints for SMILES
+# Function to calculate Morgan fingerprints for SMILES
 def calculate_morgan_fingerprints(smiles, radius=2, n_bits=2048):
     mol = Chem.MolFromSmiles(smiles)
     if mol is not None:
@@ -50,6 +50,7 @@ def generate_best_fragment(smiles, model, feature_columns):
     fragment_smiles = label_encoder_smiles.inverse_transform([int(fragment_label)])[0]
     
     return fragment_smiles
+    #Function to clean up a molecule
 def cleanup_molecule_rdkit(smiles):
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
@@ -58,7 +59,7 @@ def cleanup_molecule_rdkit(smiles):
     return Chem.MolToSmiles(mol)
 
 # Load the trained model and other objects
-best_model = joblib.load('best_model_(Enter in the best model).pkl')
+best_model = joblib.load('best_model_GradientBoosting.pkl')
 label_encoder_smiles = joblib.load('label_encoder_smiles.pkl')
 scaler = joblib.load('scaler.pkl')
 imputer = joblib.load('imputer.pkl')
@@ -67,7 +68,7 @@ imputer = joblib.load('imputer.pkl')
 feature_columns = joblib.load('feature_columns.pkl')
 
 # Example drug SMILES input
-drug_smiles = "Enter Drug Smiles"
+drug_smiles = "CCOC(=O)C1=CC=CC=C1C(=O)OCC"
 
 # Generate and print the best fragment
 best_fragment = generate_best_fragment(drug_smiles, best_model, feature_columns)
