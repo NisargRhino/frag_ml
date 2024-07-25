@@ -14,7 +14,7 @@ from sklearn.svm import SVR
 import joblib
 
 # Load the dataset 
-file_path = '/Users/nisargshah/Documents/cs/ml3/frag_dock/dataset_final.csv'
+file_path = 'path to csv file'
 data_org = pd.read_csv(file_path, nrows=100)
 
 # List all available molecular descriptors
