@@ -15,7 +15,7 @@ import joblib
 
 # Load the dataset 
 file_path = 'path to csv file'
-data_org = pd.read_csv(file_path, nrows=100)
+data_org = pd.read_csv(file_path)
 
 # List all available molecular descriptors
 descriptor_names = [desc_name[0] for desc_name in Descriptors._descList]
