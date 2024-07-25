@@ -13,15 +13,15 @@ from xgboost import XGBRegressor
 from sklearn.svm import SVR
 import joblib
 
-# Load the dataset (first 100 rows)
-file_path = 'enter file path'
-data_org = pd.read_csv(file_path, nrows=1000)
+# Load the dataset 
+file_path = '/Users/nisargshah/Documents/cs/ml3/frag_dock/dataset_final.csv'
+data_org = pd.read_csv(file_path, nrows=100)
 
 # List all available molecular descriptors
 descriptor_names = [desc_name[0] for desc_name in Descriptors._descList]
 calculator = MoleculeDescriptors.MolecularDescriptorCalculator(descriptor_names)
 
-# Define a function to calculate all available molecular descriptors for SMILES
+# Function to calculate all available molecular descriptors for SMILES
 def calculate_descriptors(smiles):
     mol = Chem.MolFromSmiles(smiles)
     if mol is not None:
@@ -29,7 +29,7 @@ def calculate_descriptors(smiles):
     else:
         return [np.nan] * len(descriptor_names)
 
-# Define a function to calculate Morgan fingerprints for SMILES
+# Function to calculate Morgan fingerprints for SMILES
 def calculate_morgan_fingerprints(smiles, radius=2, n_bits=2048):
     mol = Chem.MolFromSmiles(smiles)
     if mol is not None:
