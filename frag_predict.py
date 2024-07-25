@@ -58,7 +58,7 @@ def cleanup_molecule_rdkit(smiles):
     return Chem.MolToSmiles(mol)
 
 # Load the trained model and other objects
-best_model = joblib.load('best_model_GradientBoosting.pkl')
+best_model = joblib.load('best_model_(Enter in the best model).pkl')
 label_encoder_smiles = joblib.load('label_encoder_smiles.pkl')
 scaler = joblib.load('scaler.pkl')
 imputer = joblib.load('imputer.pkl')
