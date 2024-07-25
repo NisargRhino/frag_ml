@@ -59,7 +59,7 @@ def cleanup_molecule_rdkit(smiles):
     return Chem.MolToSmiles(mol)
 
 # Load the trained model and other objects
-best_model = joblib.load('best_model_GradientBoosting.pkl')
+best_model = joblib.load('best_model_(input best model).pkl')
 label_encoder_smiles = joblib.load('label_encoder_smiles.pkl')
 scaler = joblib.load('scaler.pkl')
 imputer = joblib.load('imputer.pkl')
@@ -67,8 +67,8 @@ imputer = joblib.load('imputer.pkl')
 # Load feature columns
 feature_columns = joblib.load('feature_columns.pkl')
 
-# Example drug SMILES input
-drug_smiles = "CCOC(=O)C1=CC=CC=C1C(=O)OCC"
+# drug SMILES input
+drug_smiles = "Enter in your drug SMILES"
 
 # Generate and print the best fragment
 best_fragment = generate_best_fragment(drug_smiles, best_model, feature_columns)
