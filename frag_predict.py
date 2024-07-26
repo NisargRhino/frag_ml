@@ -42,8 +42,8 @@ def generate_best_fragment(smiles, model, feature_columns):
     input_data = input_data[feature_columns]
     
     # Handle missing values
-    input_data = imputer.fit_transform(input_data)
-    input_data = scaler.fit_transform(input_data)
+    input_data = imputer.transform(input_data)
+    input_data = scaler.transform(input_data)
     
     # Predict the fragment
     fragment_label = model.predict(input_data)[0]
