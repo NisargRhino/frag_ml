@@ -1,5 +1,15 @@
 from rdkit import Chem
-from rdkit.Chem import AllChem
+from rdkit.Chem import AllChem, Descriptors, QED
+
+def is_drug_like(mol):
+    # Apply Lipinski's Rule of Five and QED to check for drug-likeness
+    mw = Descriptors.MolWt(mol)
+    logp = Descriptors.MolLogP(mol)
+    hbd = Descriptors.NumHDonors(mol)
+    hba = Descriptors.NumHAcceptors(mol)
+    qed_score = QED.qed(mol)
+    
+    return (mw <= 500 and logp <= 5 and hbd <= 5 and hba <= 10 and qed_score > 0.3)
 
 def add_bond_and_adjust_hydrogens(rwmol, atom1_idx, atom2_idx, bond_type):
     rwmol.AddBond(atom1_idx, atom2_idx, bond_type)
@@ -49,8 +59,8 @@ def combine_fragments(frag1_smiles, frag2_smiles, num_points=10):
     frag1 = Chem.MolFromSmiles(frag1_smiles)
     frag2 = Chem.MolFromSmiles(frag2_smiles)
 
-    frag1_carbon_atoms = [atom.GetIdx() for atom in frag1.GetAtoms() if atom.GetSymbol() == 'C']
-    frag2_carbon_atoms = [atom.GetIdx() for atom in frag2.GetAtoms() if atom.GetSymbol() == 'C']
+    frag1_carbon_atoms = [atom.GetIdx() for atom in frag1.GetAtoms() if atom.GetSymbol() == 'C' and atom.GetDegree() < 4]
+    frag2_carbon_atoms = [atom.GetIdx() for atom in frag2.GetAtoms() if atom.GetSymbol() == 'C' and atom.GetDegree() < 4]
 
     if not frag1_carbon_atoms or not frag2_carbon_atoms:
         raise ValueError("No suitable carbon atoms found in one or both fragments for bond formation.")
@@ -63,23 +73,25 @@ def combine_fragments(frag1_smiles, frag2_smiles, num_points=10):
 
         try:
             ester_combined_mol = add_ester_bond(frag1, frag1_atom_idx, frag2, frag2_atom_idx)
-            ester_combined_smiles = Chem.MolToSmiles(ester_combined_mol)
-            combined_molecules.append(ester_combined_smiles)
+            if is_drug_like(ester_combined_mol):
+                ester_combined_smiles = Chem.MolToSmiles(ester_combined_mol)
+                combined_molecules.append(ester_combined_smiles)
         except Exception as e:
             print(f"Error combining molecules with ester bond at point {i}: {e}")
 
         try:
             amide_combined_mol = add_amide_bond(frag1, frag1_atom_idx, frag2, frag2_atom_idx)
-            amide_combined_smiles = Chem.MolToSmiles(amide_combined_mol)
-            combined_molecules.append(amide_combined_smiles)
+            if is_drug_like(amide_combined_mol):
+                amide_combined_smiles = Chem.MolToSmiles(amide_combined_mol)
+                combined_molecules.append(amide_combined_smiles)
         except Exception as e:
             print(f"Error combining molecules with amide bond at point {i}: {e}")
 
     return combined_molecules
 
 # Example usage
-frag1_smiles = 'add SMILES here'  # Fragment 1 SMILES
-frag2_smiles = 'add SMILES here'  # Fragment 2 SMILES
+frag1_smiles = 'CC(=O)C(C)c1ccc(CC(C)C)cc1'  # Fragment 1 SMILES
+frag2_smiles = 'CCn1cc(C(C)=O)c(=O)c2cc(F)c(C)nc21'  # Fragment 2 SMILES
 
 combined_smiles_list = combine_fragments(frag1_smiles, frag2_smiles)
 
