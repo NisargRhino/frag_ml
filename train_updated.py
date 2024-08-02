@@ -14,7 +14,7 @@ from rdkit.Chem.AllChem import GetMorganFingerprintAsBitVect
 import joblib
 
 # Load dataset
-file_path = '/Users/nisargshah/Documents/cs/ml4/dataset_final.csv'
+file_path = 'enter path to csv'
 data = pd.read_csv(file_path)
 
 # List of specific descriptors to calculate
