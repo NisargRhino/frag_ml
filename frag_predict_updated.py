@@ -4,8 +4,8 @@ from rdkit import Chem
 from rdkit.Chem import AllChem, DataStructs
 
 # Load the trained model and tokenizer
-model = RobertaForMaskedLM.from_pretrained('/Users/nisargshah/Documents/cs/ml4/frag_ml/model')
-tokenizer = RobertaTokenizer.from_pretrained('/Users/nisargshah/Documents/cs/ml4/frag_ml/tokenizer')
+model = RobertaForMaskedLM.from_pretrained('enter file path')
+tokenizer = RobertaTokenizer.from_pretrained('enter file path')
 model.eval()
 
 def predict_fragment_smiles(smiles, model, tokenizer, max_length=128):
