@@ -10,7 +10,7 @@ from rdkit.Chem import AllChem, DataStructs
 import numpy as np
 
 # Load the dataset
-file_path = '/Users/nisargshah/Documents/cs/ml4/dataset_final.csv'
+file_path = 'entire file path'
 data_org = pd.read_csv(file_path)
 
 # Custom dataset class
@@ -72,9 +72,9 @@ for epoch in range(10):  # 10 epochs
         print(f"Epoch: {epoch}, Loss: {loss.item()}")
 
 # Save the trained model and tokenizer
-model.save_pretrained('/Users/nisargshah/Documents/cs/ml4/frag_ml/model')
+model.save_pretrained('enter file paths')
 tokenizer.save_pretrained('/Users/nisargshah/Documents/cs/ml4/frag_ml/tokenizer')
-joblib.dump(config, '/Users/nisargshah/Documents/cs/ml4/frag_ml/config.pkl')
+joblib.dump(config, 'entire file path/config.pkl')
 
 # Function to calculate Tanimoto similarity
 def tanimoto_similarity(smiles1, smiles2):
