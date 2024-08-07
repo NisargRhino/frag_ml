@@ -8,17 +8,17 @@ import joblib
 from rdkit import Chem
 from rdkit.Chem import AllChem, DataStructs
 import numpy as np
-from numba import jit, cuda 
+
 # to measure exec time 
 from timeit import default_timer as timer
-device = "cuda" if torch.cuda.is_available() else "cpu" 
+
+# Device configuration
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f'device: {device}')
 
-torch.set_default_device('cuda')
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
 # Load the dataset
-file_path = "C:\\Users\\nisar\\cs\ml3\\frag_ml\\dataset_final.csv"
-data_org = pd.read_csv(file_path, nrows=8000)
+file_path = "./erk2.csv"
+data_org = pd.read_csv(file_path)
 
 # Custom dataset class
 class SMILESDataset(Dataset):
@@ -52,10 +52,16 @@ class SMILESDataset(Dataset):
 tokenizer = RobertaTokenizer.from_pretrained('seyonec/ChemBERTa-zinc-base-v1')
 config = RobertaConfig.from_pretrained('seyonec/ChemBERTa-zinc-base-v1')
 model = RobertaForMaskedLM.from_pretrained('seyonec/ChemBERTa-zinc-base-v1', config=config)
-model.to('cuda')
+
+# Enable DataParallel to utilize multiple GPUs
+if torch.cuda.device_count() > 1:
+    model = torch.nn.DataParallel(model)
+
+model.to(device)
+
 # Create dataset and dataloader
 dataset = SMILESDataset(data_org, tokenizer)
-dataloader = DataLoader(dataset,  batch_size=32, shuffle=True, generator=torch.Generator(device='cuda'))
+dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 
 # Define optimizer, loss function, and learning rate scheduler
 optimizer = optim.AdamW(model.parameters(), lr=5e-5)
@@ -67,9 +73,9 @@ loss_fn = CrossEntropyLoss()
 model.train()
 for epoch in range(10):  # 10 epochs
     for batch in dataloader:
-
         optimizer.zero_grad()
-        outputs = model(input_ids=batch['input_ids'], attention_mask=batch['attention_mask'], labels=batch['labels'])
+        inputs = {key: val.to(device) for key, val in batch.items() if key != 'actual_fragment_smiles'}
+        outputs = model(**inputs)
         loss = outputs.loss
         
         loss.backward()
@@ -79,9 +85,9 @@ for epoch in range(10):  # 10 epochs
         print(f"Epoch: {epoch}, Loss: {loss.item()}")
 
 # Save the trained model and tokenizer
-model.save_pretrained("C:\\Users\\nisar\\cs\ml3\\frag_ml\\model")
-tokenizer.save_pretrained("C:\\Users\\nisar\\cs\ml3\\frag_ml\\tokenizer")
-joblib.dump(config, "C:\\Users\\nisar\\cs\ml3\\frag_ml\\model\\config.pkl")
+model.module.save_pretrained("./model")  # Note the .module when using DataParallel
+tokenizer.save_pretrained("./tokenizer")
+joblib.dump(config, "./config.pkl")
 
 # Function to calculate Tanimoto similarity
 def tanimoto_similarity(smiles1, smiles2):
@@ -104,7 +110,8 @@ tanimoto_similarities = []
 model.eval()
 with torch.no_grad():
     for batch in dataloader:
-        outputs = model(input_ids=batch['input_ids'], attention_mask=batch['attention_mask'], labels=batch['labels'])
+        inputs = {key: val.to(device) for key, val in batch.items() if key != 'actual_fragment_smiles'}
+        outputs = model(**inputs)
         predictions = outputs.logits.argmax(dim=-1)
 
         # Decode the predicted SMILES and the actual SMILES
