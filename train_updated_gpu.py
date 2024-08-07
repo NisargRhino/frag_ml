@@ -8,17 +8,15 @@ import joblib
 from rdkit import Chem
 from rdkit.Chem import AllChem, DataStructs
 import numpy as np
-
-# to measure exec time 
-from timeit import default_timer as timer
+import matplotlib.pyplot as plt
 
 # Device configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f'device: {device}')
 
 # Load the dataset
-file_path = "C:\\Users\\nisar\\cs\\ml3\\frag_ml\\dataset_final.csv"
-data_org = pd.read_csv(file_path,nrows=100)
+file_path = "./erk2.csv"
+data_org = pd.read_csv(file_path, nrows=100)
 
 # Custom dataset class
 class SMILESDataset(Dataset):
@@ -69,26 +67,9 @@ total_steps = len(dataloader) * 10  # 10 epochs
 scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=total_steps)
 loss_fn = CrossEntropyLoss()
 
-# Training loop
-model.train()
-for epoch in range(10):  # 10 epochs
-    for batch in dataloader:
-        optimizer.zero_grad()
-        inputs = {key: val.to(device) for key, val in batch.items() if key != 'actual_fragment_smiles'}
-        outputs = model(**inputs)
-        loss = outputs.loss
-        
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
-
-        print(f"Epoch: {epoch}, Loss: {loss.item()}")
-
-# Save the trained model and tokenizer
-model_to_save = model.module if hasattr(model, 'module') else model
-model_to_save.save_pretrained("C:\\Users\\nisar\\cs\\ml3\\frag_ml\\model")
-tokenizer.save_pretrained("C:\\Users\\nisar\\cs\\ml3\\frag_ml\\tokenizer")
-joblib.dump(config, "C:\\Users\\nisar\\cs\\ml3\\frag_ml\\model\\config.pkl")
+# Lists to store training metrics
+losses = []
+tanimoto_similarities = []
 
 # Function to calculate Tanimoto similarity
 def tanimoto_similarity(smiles1, smiles2):
@@ -103,10 +84,35 @@ def tanimoto_similarity(smiles1, smiles2):
     
     return DataStructs.TanimotoSimilarity(fp1, fp2)
 
+# Training loop
+model.train()
+for epoch in range(10):  # 10 epochs
+    epoch_losses = []
+    for batch in dataloader:
+        optimizer.zero_grad()
+        inputs = {key: val.to(device) for key, val in batch.items() if key != 'actual_fragment_smiles'}
+        outputs = model(**inputs)
+        loss = outputs.loss
+        
+        loss.backward()
+        optimizer.step()
+        scheduler.step()
+
+        epoch_losses.append(loss.item())
+        print(f"Epoch: {epoch}, Loss: {loss.item()}")
+    
+    mean_epoch_loss = np.mean(epoch_losses)
+    losses.append(mean_epoch_loss)
+
+# Save the trained model and tokenizer
+model_to_save = model.module if hasattr(model, 'module') else model
+model_to_save.save_pretrained("./model")
+tokenizer.save_pretrained("./tokenizer")
+joblib.dump(config, "./config.pkl")
+
 # Evaluation
 true_values = []
 predicted_values = []
-tanimoto_similarities = []
 
 model.eval()
 with torch.no_grad():
@@ -130,3 +136,23 @@ with torch.no_grad():
 mean_tanimoto_similarity = np.mean(tanimoto_similarities)
 
 print(f"Mean Tanimoto Similarity: {mean_tanimoto_similarity}")
+
+# Plot training loss and Tanimoto similarity
+plt.figure(figsize=(12, 5))
+
+plt.subplot(1, 2, 1)
+plt.plot(losses, label='Training Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Training Loss Over Epochs')
+plt.legend()
+
+plt.subplot(1, 2, 2)
+plt.plot(tanimoto_similarities, label='Tanimoto Similarity')
+plt.xlabel('Batch')
+plt.ylabel('Tanimoto Similarity')
+plt.title('Tanimoto Similarity Over Batches')
+plt.legend()
+
+plt.tight_layout()
+plt.show()
