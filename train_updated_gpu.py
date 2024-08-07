@@ -98,7 +98,7 @@ for epoch in range(10):  # 10 epochs
         optimizer.step()
         scheduler.step()
 
-        epoch_losses.append(loss.item())
+        epoch_losses.append(loss.mean().item())
         print(f"Epoch: {epoch}, Loss: {loss.mean().item()}")
     
     mean_epoch_loss = np.mean(epoch_losses)
