@@ -18,7 +18,7 @@ print(f'device: {device}')
 
 # Load the dataset
 file_path = "C:\\Users\\nisar\\cs\\ml3\\frag_ml\\dataset_final.csv"
-data_org = pd.read_csv(file_path, nrows=8000)
+data_org = pd.read_csv(file_path,nrows=100)
 
 # Custom dataset class
 class SMILESDataset(Dataset):
