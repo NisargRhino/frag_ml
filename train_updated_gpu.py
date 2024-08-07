@@ -55,7 +55,7 @@ model = RobertaForMaskedLM.from_pretrained('seyonec/ChemBERTa-zinc-base-v1', con
 model.to('cuda')
 # Create dataset and dataloader
 dataset = SMILESDataset(data_org, tokenizer)
-dataloader = DataLoader(dataset,  batch_size=1, shuffle=True, generator=torch.Generator(device='cuda'))
+dataloader = DataLoader(dataset,  batch_size=32, shuffle=True, generator=torch.Generator(device='cuda'))
 
 # Define optimizer, loss function, and learning rate scheduler
 optimizer = optim.AdamW(model.parameters(), lr=5e-5)
