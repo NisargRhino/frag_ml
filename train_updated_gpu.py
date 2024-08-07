@@ -101,8 +101,8 @@ for epoch in range(10):  # 10 epochs
         epoch_losses.append(loss.mean().item())
         print(f"Epoch: {epoch}, Loss: {loss.mean().item()}")
     
-    mean_epoch_loss = np.mean(epoch_losses)
-    losses.append(mean_epoch_loss)
+    
+    losses.append(epoch_losses)
 
 # Save the trained model and tokenizer
 model_to_save = model.module if hasattr(model, 'module') else model
