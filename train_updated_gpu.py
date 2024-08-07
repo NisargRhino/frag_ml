@@ -17,7 +17,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f'device: {device}')
 
 # Load the dataset
-file_path = "C:\\Users\\nisar\\cs\\ml3\\frag_ml\\dataset_final.csv"
+file_path = "./erk2.csv"
 data_org = pd.read_csv(file_path, nrows=8000)
 
 # Custom dataset class
@@ -86,9 +86,9 @@ for epoch in range(10):  # 10 epochs
 
 # Save the trained model and tokenizer
 model_to_save = model.module if hasattr(model, 'module') else model
-model_to_save.save_pretrained("C:\\Users\\nisar\\cs\\ml3\\frag_ml\\model")
-tokenizer.save_pretrained("C:\\Users\\nisar\\cs\\ml3\\frag_ml\\tokenizer")
-joblib.dump(config, "C:\\Users\\nisar\\cs\\ml3\\frag_ml\\model\\config.pkl")
+model_to_save.save_pretrained("./model")
+tokenizer.save_pretrained("./tokenizer")
+joblib.dump(config, "./config.pkl")
 
 # Function to calculate Tanimoto similarity
 def tanimoto_similarity(smiles1, smiles2):
