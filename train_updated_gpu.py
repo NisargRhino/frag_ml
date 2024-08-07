@@ -78,7 +78,7 @@ for epoch in range(10):  # 10 epochs
         outputs = model(**inputs)
         loss = outputs.loss
         
-        loss.backward()
+        loss.mean().backward()
         optimizer.step()
         scheduler.step()
 
