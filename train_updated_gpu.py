@@ -8,7 +8,7 @@ import joblib
 from rdkit import Chem
 from rdkit.Chem import AllChem, DataStructs
 import numpy as np
-
+import matplotlib.pyplot as plt
 # to measure exec time 
 from timeit import default_timer as timer
 
