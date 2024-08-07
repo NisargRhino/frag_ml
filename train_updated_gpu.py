@@ -130,3 +130,21 @@ with torch.no_grad():
 mean_tanimoto_similarity = np.mean(tanimoto_similarities)
 
 print(f"Mean Tanimoto Similarity: {mean_tanimoto_similarity}")
+plt.figure(figsize=(12, 5))
+
+plt.subplot(1, 2, 1)
+plt.plot(losses, label='Training Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Training Loss Over Epochs')
+plt.legend()
+
+plt.subplot(1, 2, 2)
+plt.plot(tanimoto_similarities, label='Tanimoto Similarity')
+plt.xlabel('Batch')
+plt.ylabel('Tanimoto Similarity')
+plt.title('Tanimoto Similarity Over Batches')
+plt.legend()
+
+plt.tight_layout()
+plt.show()
