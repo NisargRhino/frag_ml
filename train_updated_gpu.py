@@ -82,7 +82,7 @@ for epoch in range(10):  # 10 epochs
         optimizer.step()
         scheduler.step()
 
-        print(f"Epoch: {epoch}, Loss: {loss.item()}")
+        print(f"Epoch: {epoch}, Loss: {loss.mean().item()}")
 
 # Save the trained model and tokenizer
 model_to_save = model.module if hasattr(model, 'module') else model
