@@ -59,7 +59,7 @@ model.to(device)
 
 # Create dataset and dataloader
 dataset = SMILESDataset(data_org, tokenizer)
-dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+dataloader = DataLoader(dataset, batch_size=1, shuffle=True)
 
 # Define optimizer, loss function, and learning rate scheduler
 optimizer = optim.AdamW(model.parameters(), lr=5e-5)
