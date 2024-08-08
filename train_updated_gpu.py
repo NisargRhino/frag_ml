@@ -15,8 +15,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f'device: {device}')
 
 # Load the dataset
-file_path = "./mTOR.csv"
-data_org = pd.read_csv(file_path, nrows=10000)
+file_path = "./dataset_final.csv"
+data_org = pd.read_csv(file_path)
 
 # Custom dataset class
 class SMILESDataset(Dataset):
