@@ -172,6 +172,4 @@ plt.grid(True)
 plt.legend()
 
 plt.tight_layout()
-plt.savefig("figure.png")
-
-
+plt.savefig("mTORfigure.png")
