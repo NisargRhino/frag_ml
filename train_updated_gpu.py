@@ -15,7 +15,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f'device: {device}')
 
 # Load the dataset
-file_path = "./erk2.csv"
+file_path = "./mTOR.csv"
 data_org = pd.read_csv(file_path)
 
 # Custom dataset class
@@ -138,21 +138,31 @@ mean_tanimoto_similarity = np.mean(tanimoto_similarities)
 print(f"Mean Tanimoto Similarity: {mean_tanimoto_similarity}")
 
 # Plot training loss and Tanimoto similarity
-plt.figure(figsize=(12, 5))
+# Plot the results
+plt.figure(figsize=(14, 6))
 
+# Plot for Training Loss per Epoch
 plt.subplot(1, 2, 1)
-plt.plot(losses, label='Training Loss')
+plt.plot(range(1, 11), mean_losses, marker='o', color='b', label='Training Loss')
 plt.xlabel('Epoch')
 plt.ylabel('Loss')
 plt.title('Training Loss Over Epochs')
+plt.xticks(range(1, 11))
+plt.grid(True)
 plt.legend()
 
+# Plot for Mean Tanimoto Similarity per Epoch
 plt.subplot(1, 2, 2)
-plt.plot(tanimoto_similarities, label='Tanimoto Similarity')
-plt.xlabel('Batch')
-plt.ylabel('Tanimoto Similarity')
-plt.title('Tanimoto Similarity Over Batches')
+plt.plot(range(1, 11), epoch_mean_similarities, marker='o', color='g', label='Mean Tanimoto Similarity')
+plt.xlabel('Epoch')
+plt.ylabel('Mean Tanimoto Similarity')
+plt.title('Mean Tanimoto Similarity Over Epochs')
+plt.xticks(range(1, 11))
+plt.ylim(0, 1)
+plt.grid(True)
 plt.legend()
 
 plt.tight_layout()
-plt.show()
+plt.savefig("figure.png")
+
+
