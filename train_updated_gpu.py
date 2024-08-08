@@ -137,7 +137,16 @@ mean_tanimoto_similarity = np.mean(tanimoto_similarities)
 
 print(f"Mean Tanimoto Similarity: {mean_tanimoto_similarity}")
 
-# Plot training loss and Tanimoto similarity
+mean_losses = [np.mean(epoch_losses) for epoch_losses in losses]
+
+# Calculate mean Tanimoto similarity per epoch
+epoch_mean_similarities = []
+for i in range(10):
+    start_idx = i * len(dataloader)
+    end_idx = start_idx + len(dataloader)
+    mean_similarity = np.mean(tanimoto_similarities[start_idx:end_idx])
+    epoch_mean_similarities.append(mean_similarity)
+
 # Plot the results
 plt.figure(figsize=(14, 6))
 
