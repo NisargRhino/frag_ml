@@ -15,7 +15,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f'device: {device}')
 
 # Load the dataset
-file_path = "./dataset_final.csv"
+file_path = "./mTORC.csv"
 data_org = pd.read_csv(file_path)
 
 # Custom dataset class
