@@ -16,7 +16,7 @@ print(f'device: {device}')
 
 # Load the dataset
 file_path = "./mTORcanonical.csv"
-data_org = pd.read_csv(file_path)
+data_org = pd.read_csv(file_path, nrows=100)
 
 # Custom dataset class
 class SMILESDataset(Dataset):
@@ -84,7 +84,12 @@ def tanimoto_similarity(smiles1, smiles2):
     
     return DataStructs.TanimotoSimilarity(fp1, fp2)
 
-# Training loop
+# Function to validate SMILES
+def is_valid_smiles(smiles):
+    mol = Chem.MolFromSmiles(smiles)
+    return mol is not None
+
+# Training loop with SMILES validation
 model.train()
 for epoch in range(10):  # 10 epochs
     epoch_losses = []
@@ -93,14 +98,21 @@ for epoch in range(10):  # 10 epochs
         inputs = {key: val.to(device) for key, val in batch.items() if key != 'actual_fragment_smiles'}
         outputs = model(**inputs)
         loss = outputs.loss
+
+        # Decode the predicted SMILES
+        predictions = outputs.logits.argmax(dim=-1)
+        predicted_smiles = tokenizer.decode(predictions[0], skip_special_tokens=True)
         
+        # Validate the predicted SMILES
+        if not is_valid_smiles(predicted_smiles):
+            loss += torch.tensor(1.0, device=device)  # Penalize invalid SMILES
+
         loss.mean().backward()
         optimizer.step()
         scheduler.step()
 
         epoch_losses.append(loss.mean().item())
         print(f"Epoch: {epoch}, Loss: {loss.mean().item()}")
-    
     
     losses.append(epoch_losses)
 
