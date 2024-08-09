@@ -16,7 +16,7 @@ print(f'device: {device}')
 
 # Load the dataset
 file_path = "./mTORcanonical.csv"
-data_org = pd.read_csv(file_path, nrows=100)
+data_org = pd.read_csv(file_path)
 
 # Custom dataset class
 class SMILESDataset(Dataset):
