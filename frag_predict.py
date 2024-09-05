@@ -6,8 +6,8 @@ import Levenshtein
 import pandas as pd
 
 # Load the trained model and tokenizer
-model = RobertaForMaskedLM.from_pretrained('/Users/nisargshah/Documents/cs/ml4/frag_ml/model-mTOR')
-tokenizer = RobertaTokenizer.from_pretrained('/Users/nisargshah/Documents/cs/ml4/frag_ml/tokenizer-mTOR')
+model = RobertaForMaskedLM.from_pretrained('/Users/nisargshah/Documents/cs/ml4/frag_ml/model-mTOR')#enter path of the model from train_model.py
+tokenizer = RobertaTokenizer.from_pretrained('/Users/nisargshah/Documents/cs/ml4/frag_ml/tokenizer-mTOR')#enter path of the tokenizer from train_model.py
 model.eval()
 
 # Load the unique SMILES dataset
