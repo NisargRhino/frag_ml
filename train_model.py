@@ -17,7 +17,7 @@ print(f'device: {device}')
 # Load the dataset
 file_path = "" #enter the dataset path
 
-data_org = pd.read_csv(file_path, nrows=100)
+data_org = pd.read_csv(file_path)
 
 # Custom dataset class
 class SMILESDataset(Dataset):
