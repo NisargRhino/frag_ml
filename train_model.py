@@ -15,10 +15,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f'device: {device}')
 
 # Load the dataset
-file_path = "./akt1canonical.csv"
-#file_path = "./erk2canonical.csv"
+file_path = "" #enter the dataset path
 
-data_org = pd.read_csv(file_path)
+data_org = pd.read_csv(file_path, nrows=100)
 
 # Custom dataset class
 class SMILESDataset(Dataset):
