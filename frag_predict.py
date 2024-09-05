@@ -6,12 +6,12 @@ import Levenshtein
 import pandas as pd
 
 # Load the trained model and tokenizer
-model = RobertaForMaskedLM.from_pretrained('/Users/nisargshah/Documents/cs/ml4/frag_ml/model-mTOR')#enter path of the model from train_model.py
-tokenizer = RobertaTokenizer.from_pretrained('/Users/nisargshah/Documents/cs/ml4/frag_ml/tokenizer-mTOR')#enter path of the tokenizer from train_model.py
+model = RobertaForMaskedLM.from_pretrained('')#enter path of the model from train_model.py
+tokenizer = RobertaTokenizer.from_pretrained('')#enter path of the tokenizer from train_model.py
 model.eval()
 
 # Load the unique SMILES dataset
-unique_smiles_df = pd.read_csv('/Users/nisargshah/Documents/cs/ml4/frag_ml/unique_smile5.csv')
+unique_smiles_df = pd.read_csv('')# enter the path of unique_smile5.csv
 unique_smiles_list = unique_smiles_df['SMILES'].tolist()
 
 def predict_fragment_smiles(smiles, model, tokenizer, max_length=128):
