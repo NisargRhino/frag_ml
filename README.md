@@ -6,3 +6,4 @@
 6. gen_data.py generates a dataset of drug SMILES and its frag SMILES. Enter a csv of drug SMILES, protein, and coordinates.
    Example input through terminal : python gen_data.py --input_csv "input.csv" --mol2_path "mTOR.mol2" --docking_dir "dockdir" --target_name "mTOR" --center_coords 68.0658 -5.1678 -54.97 --box_sizes 98.194 95.5592 116.24 --output_path "output.csv"
    
+best model-  0.00001
