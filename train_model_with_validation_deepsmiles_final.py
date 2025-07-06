@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse, csv, os, time
+import argparse, csv, json, os, time
 from datetime import datetime
 from pathlib import Path
 import numpy as np
@@ -10,15 +10,16 @@ from rdkit.Chem import AllChem
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-from transformers import (RobertaForMaskedLM, RobertaTokenizer,  get_linear_schedule_with_warmup)
-
+from transformers import (RobertaForMaskedLM, RobertaTokenizer, get_linear_schedule_with_warmup)
+import matplotlib
+import matplotlib.pyplot as plt
+matplotlib.use("Agg")
 RDLogger.DisableLog("rdApp.*")
 
 try:
     from deepsmiles import Converter
 except ImportError:
     raise SystemExit("Install deepsmiles first:  pip install deepsmiles")
-
 _conv = Converter(rings=True, branches=True)
 
 
@@ -40,10 +41,15 @@ def tanimoto(sm1: str | None, sm2: str | None) -> float:
     return DataStructs.TanimotoSimilarity(fp1, fp2)
 
 
+def export_full_package(run_dir: Path, model: RobertaForMaskedLM, tokenizer: RobertaTokenizer, meta: dict):
+    model.save_pretrained(run_dir)
+    tokenizer.save_pretrained(run_dir)
+    with open(run_dir / "metadata.json", "w") as fh:
+        json.dump(meta, fh, indent=2)
+
+
 class SMILESDataset(Dataset):
-    def __init__(self, df: pd.DataFrame, tokenizer: RobertaTokenizer, *,
-                 smiles_col="DRUG SMILES_DEEP", label_col="FRAG_SMILES_DEEP",
-                 max_length=128) -> None:
+    def __init__(self, df: pd.DataFrame, tokenizer: RobertaTokenizer, *, smiles_col="DRUG SMILES_DEEP", label_col="FRAG_SMILES_DEEP",max_length=128):
         df = df.dropna(subset=[smiles_col, label_col])
         df = df[(df[smiles_col].str.len() > 0) & (df[label_col].str.len() > 0)]
         self.df = df.reset_index(drop=True)
@@ -55,24 +61,18 @@ class SMILESDataset(Dataset):
         return len(self.df)
 
     def _enc(self, s: str):
-        return self.tok(s,
-                        max_length=self.max_length,
-                        truncation=True,
-                        padding="max_length",
-                        return_tensors="pt")
+        return self.tok(s, max_length=self.max_length, truncation=True, padding="max_length", return_tensors="pt")
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
         inp = self._enc(row[self.smiles_col])
         lbl = self._enc(row[self.label_col])
         labels = lbl["input_ids"].squeeze()
-        labels[lbl["attention_mask"].squeeze() == 0] = -100  # ignore padding
-        return {
-            "input_ids": inp["input_ids"].squeeze(),
-            "attention_mask": inp["attention_mask"].squeeze(),
-            "labels": labels,
-            "gold_deepsmiles": row[self.label_col],
-        }
+        labels[lbl["attention_mask"].squeeze() == 0] = -100
+        return {"input_ids": inp["input_ids"].squeeze(),
+                "attention_mask": inp["attention_mask"].squeeze(),
+                "labels": labels,
+                "gold_deepsmiles": row[self.label_col]}
 
 
 def collate_fn(batch):
@@ -83,51 +83,55 @@ def collate_fn(batch):
     return out
 
 
-def decode_batch(tok: RobertaTokenizer, ids: torch.Tensor):
-    return [s.replace(" ", "") for s in
-            tok.batch_decode(ids, skip_special_tokens=True)]
+def decode_batch(tok, ids): return [s.replace(" ", "") for s in
+                                    tok.batch_decode(ids, skip_special_tokens=True)]
 
 
 def epoch_loop(model, dl, tok, optim, sched, device, *, is_train, λ_seq, λ_l1, λ_l2, invalid_penalty):
     getattr(model, "train" if is_train else "eval")()
     running_loss = running_tani = n = 0
-    pbar = tqdm(dl, desc=f"{'Train' if is_train else 'Eval '}")
+    pbar = tqdm(dl, desc="Train" if is_train else "Eval ")
     for batch in pbar:
         gold_ds = batch["gold_deepsmiles"]
         batch_t = {k: v.to(device) for k, v in batch.items() if torch.is_tensor(v)}
-
         with torch.set_grad_enabled(is_train):
             out = model(**batch_t)
             ce = out.loss
-
-            preds_ds = decode_batch(tok, torch.argmax(out.logits, -1))
+            preds_ds = decode_batch(tok, out.logits.argmax(-1))
             preds_sm = [deep_to_smiles(s) for s in preds_ds]
             gold_sm = [deep_to_smiles(s) for s in gold_ds]
-
             tani = np.fromiter((tanimoto(p, g) for p, g in zip(preds_sm, gold_sm)),dtype=float)
             mean_t = tani.mean() if len(tani) else 0.0
-
             seq_pen = 1.0 - mean_t
             inv_loss = np.fromiter((p is None for p in preds_sm), float).mean() * invalid_penalty
             l1 = sum(p.abs().sum() for p in model.parameters())
             l2 = sum(p.pow(2).sum() for p in model.parameters())
-
             loss = ce + λ_seq * seq_pen + inv_loss + λ_l1 * l1 + λ_l2 * l2
-
             if is_train:
                 loss.backward()
                 clip_grad_norm_(model.parameters(), 1.0)
-                optim.step();
-                sched.step();
+                optim.step()
+                sched.step()
                 optim.zero_grad(set_to_none=True)
-
         bs = batch_t["input_ids"].size(0)
         running_loss += loss.item() * bs
         running_tani += mean_t * bs
         n += bs
         pbar.set_postfix(loss=running_loss / n, tani=running_tani / n)
-
     return running_loss / n, running_tani / n
+
+
+def plot_two_series(xs, ys1, ys2, ylabel, out_path, title):
+    plt.figure()
+    plt.plot(xs, ys1, label="train")
+    plt.plot(xs, ys2, label="val")
+    plt.xlabel("epoch")
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=300)
+    plt.close()
 
 
 def main():
@@ -141,7 +145,7 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-5)
     ap.add_argument("--max_length", type=int, default=45)
     ap.add_argument("--patience", type=int, default=40)
-    ap.add_argument("--resume", help="path to *.pt to resume from")
+    ap.add_argument("--resume")
     args = ap.parse_args()
 
     start = time.time()
@@ -149,9 +153,8 @@ def main():
 
     if args.resume:
         ckpt_path = Path(args.resume).resolve()
-        run_dir = ckpt_path.parent  # SAME folder as existing checkpoint
-        if not ckpt_path.is_file():
-            raise FileNotFoundError(f"{ckpt_path} not found")
+        if not ckpt_path.is_file(): raise FileNotFoundError(ckpt_path)
+        run_dir = ckpt_path.parent
     else:
         run_dir = Path("runs") / datetime.now().strftime("%y-%m-%d-%H-%M-%S_deepsmiles")
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -180,42 +183,63 @@ def main():
         best_tani = ckpt["best_tani"]
         start_epoch = ckpt["epoch"] + 1
 
-    λ_seq, λ_l1, λ_l2, invalid_pen = 8, 0, 1e-5, 2.5  # changed from 4.5, inv_pen was 1.0 # sequential 10.2
+    λ_seq, λ_l1, λ_l2, invalid_pen = 8, 0, 1e-5, 2.5
+
+
+    hist = {"epoch": [], "train_loss": [], "val_loss": [], "train_tani": [], "val_tani": []}
+    ft_hist = {k: [] for k in hist} if args.resume else None
 
     try:
         for ep in range(start_epoch, args.epochs + 1):
             print(f"\nEpoch {ep}/{args.epochs}")
-            tr_loss, tr_t = epoch_loop(model, train_dl, tok, optim, sched, device, is_train=True, λ_seq=λ_seq, λ_l1=λ_l1, λ_l2=λ_l2, invalid_penalty=invalid_pen)
-            vl_loss, vl_t = epoch_loop(model, val_dl, tok, optim, sched, device, is_train=False, λ_seq=λ_seq, λ_l1=λ_l1, λ_l2=λ_l2, invalid_penalty=invalid_pen)
+            tr_loss, tr_t = epoch_loop(model, train_dl, tok, optim, sched, device,is_train=True, λ_seq=λ_seq, λ_l1=λ_l1, λ_l2=λ_l2, invalid_penalty=invalid_pen)
+            vl_loss, vl_t = epoch_loop(model, val_dl, tok, optim, sched, device,is_train=False, λ_seq=λ_seq, λ_l1=λ_l1, λ_l2=λ_l2, invalid_penalty=invalid_pen)
 
             print(f"train loss {tr_loss:.4f} | val loss {vl_loss:.4f}")
             print(f"train tani  {tr_t:.3f} | val tani  {vl_t:.3f}")
 
+            hist["epoch"].append(ep)
+            hist["train_loss"].append(tr_loss)
+            hist["val_loss"].append(vl_loss)
+            hist["train_tani"].append(tr_t)
+            hist["val_tani"].append(vl_t)
+            if ft_hist is not None:
+                ft_hist["epoch"].append(ep)
+                ft_hist["train_loss"].append(tr_loss)
+                ft_hist["val_loss"].append(vl_loss)
+                ft_hist["train_tani"].append(tr_t)
+                ft_hist["val_tani"].append(vl_t)
+
             if vl_t > best_tani + 1e-4:
                 best_tani = vl_t
                 patience = args.patience
-                torch.save({
-                    "model": model.state_dict(),
-                    "optim": optim.state_dict(),
-                    "sched": sched.state_dict(),
-                    "epoch": ep,
-                    "best_tani": best_tani,
-                }, run_dir / "best_model.pt")
-                print("  ↳ saved new best_model.pt")
+                torch.save({"model": model.state_dict(), "optim": optim.state_dict(),"sched": sched.state_dict(), "epoch": ep, "best_tani": best_tani}, run_dir / "best_model.pt")
+                export_full_package(run_dir, model, tok,
+                                    {"epoch": ep, "best_val_tanimoto": best_tani, "args": vars(args),
+                                     "timestamp": datetime.now().isoformat(timespec="seconds")})
+                print("  ↳ saved best_model.pt + full package")
             else:
                 patience -= 1
-                if patience == 0:
-                    print("Early stopping");
-                    break
+                if patience == 0: print("Early stopping"); break
     except KeyboardInterrupt:
         torch.save({"model": model.state_dict()}, run_dir / "last_interrupt.pt")
         print("\n⇢ training interrupted – saved last_interrupt.pt")
         return
 
+
+    plot_two_series(hist["epoch"], hist["train_tani"], hist["val_tani"], "Mean Tanimoto", run_dir / "tanimoto_curve.png", "Tanimoto similarity vs epoch")
+    plot_two_series(hist["epoch"], hist["train_loss"], hist["val_loss"], "Loss", run_dir / "loss_curve.png", "Loss vs epoch")
+    if ft_hist and ft_hist["epoch"]:
+        plot_two_series(ft_hist["epoch"], ft_hist["train_tani"], ft_hist["val_tani"], "Mean Tanimoto", run_dir / "finetune_tanimoto_curve.png", "Tanimoto similarity (fine-tune)")
+        plot_two_series(ft_hist["epoch"], ft_hist["train_loss"], ft_hist["val_loss"], "Loss", run_dir / "finetune_loss_curve.png", "Loss (fine-tune)")
+
+
     print("\nEvaluating best model on test set…")
     best = torch.load(run_dir / "best_model.pt", map_location=device)
     model.load_state_dict(best["model"])
-    ts_loss, ts_t = epoch_loop(model, test_dl, tok, optim, sched, device, is_train=False, λ_seq=λ_seq, λ_l1=λ_l1, λ_l2=λ_l2, invalid_penalty=invalid_pen)
+    ts_loss, ts_t = epoch_loop(model, test_dl, tok, optim, sched, device,
+                               is_train=False, λ_seq=λ_seq, λ_l1=λ_l1,
+                               λ_l2=λ_l2, invalid_penalty=invalid_pen)
     print(f"Test Tanimoto {ts_t:.3f}")
     print(f"Run finished in {(time.time() - start) / 60:.1f} min")
 
@@ -225,24 +249,18 @@ def main():
         for batch in test_dl:
             gold_ds = batch["gold_deepsmiles"][0]
             gold_sm = deep_to_smiles(gold_ds)
-            batch_cuda = {k: v.to(device) for k, v in batch.items()
-                          if torch.is_tensor(v)}
+            batch_cuda = {k: v.to(device) for k, v in batch.items() if torch.is_tensor(v)}
             pred_ids = model(**batch_cuda).logits.argmax(-1)
             pred_ds = decode_batch(tok, pred_ids)[0]
             pred_sm = deep_to_smiles(pred_ds)
-            rows.append({
-                "drug_deep": tok.batch_decode(batch_cuda["input_ids"],
-                                              skip_special_tokens=True)[0].replace(" ", ""),
-                "gold_deep": gold_ds,
-                "pred_deep": pred_ds,
-                "pred_valid": pred_sm is not None,
-                "tanimoto": tanimoto(pred_sm, gold_sm),
-            })
-
+            rows.append({"drug_deep": tok.batch_decode(batch_cuda["input_ids"], skip_special_tokens=True)[0].replace(" ", ""),
+                         "gold_deep": gold_ds, "pred_deep": pred_ds,
+                         "pred_valid": pred_sm is not None,
+                         "tanimoto": tanimoto(pred_sm, gold_sm)})
     csv_path = run_dir / "test_predictions.csv"
     with open(csv_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=rows[0].keys())
-        writer.writeheader();
+        writer.writeheader()
         writer.writerows(rows)
     print(f"✓ full test predictions written to {csv_path}")
 
